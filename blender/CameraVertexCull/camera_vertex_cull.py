@@ -173,7 +173,8 @@ def update_object(object, scene, camera):
         if toAddHandler:
             bpy.app.handlers.frame_change_post.append(update_handler)
             bpy.app.handlers.depsgraph_update_post.append(update_handler)
-            print("[Camera Vertex Cull] Handlers added.")
+            if debug:
+                print("[Camera Vertex Cull] Handlers added.")
 
         # This is used to know to remove the handlers if it's used
         global hasEverEnabled
@@ -226,7 +227,7 @@ class PLS_PT_CameraCullPropertiesPanel(Panel):
     
     def draw(self, context):
         layout = self.layout
-        if (context.object.type != 'CAMERA'):
+        if context.object.type == 'MESH':
             settings = context.object.camera_cull_props
 
             row = layout.row()
@@ -237,14 +238,14 @@ class PLS_PT_CameraCullPropertiesPanel(Panel):
             layout.prop(settings, "margin")
             layout.prop(settings, "distance")
         else:
-            layout.label(text="Select an object")
+            layout.label(text="Select a mesh object")
 
 class CameraVertexCullPreferences(AddonPreferences):
     bl_idname = __name__
 
     def draw(self, context):
         layout = self.layout
-        layout.label(text="Vertex based culling")
+        layout.label(text="Vertex and Distance based culling")
 
 classes = (
     CameraCullProperties,
