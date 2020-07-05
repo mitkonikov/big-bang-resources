@@ -15,7 +15,7 @@ bl_info = {
     "version": (1, 0, 0),
     "blender": (2, 83, 0),
     "location": "Object > Camera Vertex Cull",
-    "description": "Hide vertexes based on Camera Frustum. This is used to simplify geometry in huge scenes.",
+    "description": "Hide vertices, edges and polys based on Camera Frustum.",
     "doc_url": "",
     "category": "Camera"
 }
@@ -85,10 +85,12 @@ def update_calc(self, context):
 
 # This is the main update object function
 def update_object(object, scene, camera):
-    global debug, hasEverEnabled
+    global debug
     
     enabled = object.camera_cull_props.camera_cull_enabled
+    dist_enabled = object.camera_cull_props.distance_cull_enabled
     margin = object.camera_cull_props.margin
+    distance = object.camera_cull_props.distance
 
     if debug:
         print("Enabled: ", enabled)
@@ -127,11 +129,18 @@ def update_object(object, scene, camera):
         # Convert to Camera View
         coords_2d = [world_to_camera_view(scene, camera, coord) for coord in objAfterTransform]
         
+        # Iterate through the vertices
+        # The count is used to find the vertex index
         count = -1
         for x, y, distance_to_lens in coords_2d:
             count = count + 1
-            if (x >= -margin and x <= 1 + margin and y >= -margin and y <= 1 + margin): continue
-            
+            if (x >= -margin and x <= 1 + margin and y >= -margin and y <= 1 + margin):
+                if (dist_enabled):
+                    if (distance_to_lens <= distance):
+                        continue
+                else:
+                    continue
+
             if debug:
                 print("Pixel Coords:", (x, y, distance_to_lens))
             
@@ -145,24 +154,42 @@ def update_object(object, scene, camera):
                 break
                 
         # Add if there's none
-        if (alreadyHaveMask == False):
+        if not alreadyHaveMask:
             bpy.ops.object.modifier_add(type='MASK')
-        else:
-            return
+            
+            # Set up the modifier with the vertex group
+            object.modifiers["Mask"].vertex_group = "Hide_Group"
+            object.modifiers["Mask"].invert_vertex_group = True
+
+        # Search for the handlers
+        toAddHandler = True
+        for han in bpy.app.handlers.frame_change_post:
+            if han.__name__ is 'update_handler':
+                toAddHandler = False
+                break
         
-        # Set up the modifier with the vertex group
-        object.modifiers["Mask"].vertex_group = "Hide_Group"
-        object.modifiers["Mask"].invert_vertex_group = True
+        # Add the handlers if they don't exist
+        # There's no need of the handlers if the addon is never used
+        if toAddHandler:
+            bpy.app.handlers.frame_change_post.append(update_handler)
+            bpy.app.handlers.depsgraph_update_post.append(update_handler)
+            print("[Camera Vertex Cull] Handlers added.")
 
-        bpy.app.handlers.frame_change_post.append(update_handler)
-        bpy.app.handlers.depsgraph_update_post.append(update_handler)
-
+        # This is used to know to remove the handlers if it's used
+        global hasEverEnabled
         hasEverEnabled = True
 
 class CameraCullProperties(PropertyGroup):
     camera_cull_enabled: BoolProperty(
         name="Enable",
         description="Hide vertexes based on the Camera frustum",
+        default=False,
+        update=update_calc
+    )
+
+    distance_cull_enabled: BoolProperty(
+        name="Enable Distance Cull",
+        description="Hide vertexes based on the Camera Distance",
         default=False,
         update=update_calc
     )
@@ -175,6 +202,16 @@ class CameraCullProperties(PropertyGroup):
         precision=3,
         min=0,
         max=1
+    )
+
+    distance: FloatProperty(
+        name="Distance",
+        description="Culling Distance",
+        update=update_calc,
+        default=30,
+        precision=1,
+        min=0,
+        max=1000
     )
 
 class PLS_PT_CameraCullPropertiesPanel(Panel):
@@ -191,14 +228,19 @@ class PLS_PT_CameraCullPropertiesPanel(Panel):
         layout = self.layout
         if (context.object.type != 'CAMERA'):
             settings = context.object.camera_cull_props
-        
-            layout.prop(settings, "camera_cull_enabled")
+
+            row = layout.row()
+            
+            row.prop(settings, "camera_cull_enabled")
+            row.prop(settings, "distance_cull_enabled")
+            
             layout.prop(settings, "margin")
+            layout.prop(settings, "distance")
         else:
             layout.label(text="Select an object")
 
 class CameraVertexCullPreferences(AddonPreferences):
-    bl_idname = __package__
+    bl_idname = __name__
 
     def draw(self, context):
         layout = self.layout
@@ -207,10 +249,10 @@ class CameraVertexCullPreferences(AddonPreferences):
 classes = (
     CameraCullProperties,
     PLS_PT_CameraCullPropertiesPanel,
-    #CameraVertexCullPreferences
+    CameraVertexCullPreferences
 )
 
-def register():    
+def register():
     for cls in classes:
         bpy.utils.register_class(cls)
         
@@ -225,7 +267,7 @@ def unregister():
         
     del bpy.types.Object.camera_cull_props
 
-    if (hasEverEnabled):
+    if hasEverEnabled:
         bpy.app.handlers.frame_change_post.remove(update_handler)
         bpy.app.handlers.depsgraph_update_post.remove(update_handler)
 
