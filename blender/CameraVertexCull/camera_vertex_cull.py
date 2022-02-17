@@ -12,7 +12,7 @@ from math import *
 bl_info = {
     "name": "Camera Vertex Cull",
     "author": "Mitko Nikov",
-    "version": (1, 0, 0),
+    "version": (1, 0, 1),
     "blender": (2, 83, 0),
     "location": "Object > Camera Vertex Cull",
     "description": "Hide vertices, edges and polys based on Camera Frustum.",
@@ -209,7 +209,7 @@ class CameraCullProperties(PropertyGroup):
         default=0.3,
         precision=3,
         min=0,
-        max=1
+        max=100
     )
 
     distance: FloatProperty(
