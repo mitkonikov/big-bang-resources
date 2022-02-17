@@ -22,6 +22,7 @@ bl_info = {
 
 debug = False
 hasEverEnabled = False
+inWork = False # used for debouncing
 
 # This creates a new array of vertices
 # And applies the transform matrix in it
@@ -86,6 +87,10 @@ def update_calc(self, context):
 # This is the main update object function
 def update_object(object, scene, camera):
     global debug
+    global inWork
+
+    if inWork:
+        return
     
     enabled = object.camera_cull_props.camera_cull_enabled
     dist_enabled = object.camera_cull_props.distance_cull_enabled
@@ -118,7 +123,7 @@ def update_object(object, scene, camera):
 
         vg = object.vertex_groups.new(name="Hide_Group") 
     
-    # just subtract from the everyvertex weight
+    # set every vertex weight to -1
     for v in data.vertices:
         vg.add([v.index], 1, "SUBTRACT")
     
@@ -146,6 +151,7 @@ def update_object(object, scene, camera):
             
             vg.add([data.vertices[count].index], 1, "ADD")
             
+        inWork = True
         # Search for a Mask Modifier
         alreadyHaveMask = False
         for mod in object.modifiers:
@@ -179,6 +185,7 @@ def update_object(object, scene, camera):
         # This is used to know to remove the handlers if it's used
         global hasEverEnabled
         hasEverEnabled = True
+        inWork = False
 
 class CameraCullProperties(PropertyGroup):
     camera_cull_enabled: BoolProperty(
